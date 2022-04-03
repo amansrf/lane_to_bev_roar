@@ -47,6 +47,9 @@ class MaskPublisher(Node):
         # cv2.imshow("denoised_mask", denoised_mask)
         # cv2.waitKey(1)
 
+        # Halving the mask value from 255 because pointcloud overflows in some unexplainable way otherwise
+        mask = mask/2
+
         # Stack the black and white image thrice like in RGB format.
         mask_stack = np.array(
             np.stack((mask, mask, mask), axis=-1),

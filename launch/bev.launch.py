@@ -34,5 +34,11 @@ def generate_launch_description():
                 ],
                 output="screen",
             ),
+        Node(
+            package='lane_to_bev_roar',
+            namespace='bev_publisher',
+            executable='bev_publisher',
+            name='bev_publisher'
+        ),
     ]
 )
