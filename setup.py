@@ -21,7 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'lane_mask_publisher = lane_to_bev_roar.lane_detect_mask:main',
-            'bev_publisher = lane_to_bev_roar.pcl_to_bev:main',
+            'bev_publisher = lane_to_bev_roar.pcl_to_ogm:main',
         ],
     },
 )
