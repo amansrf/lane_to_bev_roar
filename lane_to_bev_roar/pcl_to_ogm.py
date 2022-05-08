@@ -130,7 +130,7 @@ class BEVPublisher(Node):
         bev_image[ (self.bev_shape[0]-lane_coods_uv[:,1]-1) , lane_coods_uv[:,0], 0] = 1
 
         # Remove noisy detections from mask
-
+        
         # vertical_kernel = np.array(
         #     [
         #         [0, 0, 1, 1, 1, 0, 0],
@@ -154,10 +154,11 @@ class BEVPublisher(Node):
 
         # bev_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel)
         bev_image = cv2.dilate(bev_image, vertical_kernel, iterations=8)
-
-
         cv2.imshow("bev", bev_image)
         cv2.waitKey(1)
+
+        # cv2.imshow("bev", bev_image)
+        # cv2.waitKey(1)
 
         # Remove noisy detections from mask
 

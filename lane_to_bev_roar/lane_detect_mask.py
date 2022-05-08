@@ -23,8 +23,8 @@ color_mask_maxima = {
     "yellow" : np.array([ 255, 255, 190])
 }
 
-LANE_COLOR = "white"
-CHKPT_COLOR = "red"
+LANE_COLOR = "red"
+CHKPT_COLOR = "yellow"
 
 class MaskPublisher(Node):
 
@@ -50,7 +50,7 @@ class MaskPublisher(Node):
             [
                 [0, 1, 1, 0],
                 [0, 1, 1, 0],
-                [0, 1, 1, 0]
+                [0, 1, 1, 0],
                 [0, 1, 1, 0]
             ],
             dtype = np.uint8
@@ -105,9 +105,10 @@ class MaskPublisher(Node):
         # Crop out top third of image for mask
         converted_image[:converted_image.shape[0]//3,:] = 0
         lane_mask_original = self.color_mask(img = converted_image, color = LANE_COLOR)
-        lane_mask = cv2.medianBlur(lane_mask_original, 5)
+        cv2.imshow("Lane Mask_unfiltered", lane_mask_original)
+        lane_mask = cv2.medianBlur(lane_mask_original, 3)
         
-        cv2.imshow("Lane Mask", lane_mask)
+        cv2.imshow("Lane Mask_filtered", lane_mask)
         # cv2.waitKey(1)
 
         # First Erode and then Dilate using the vertical_kernel to remove noise
@@ -125,7 +126,7 @@ class MaskPublisher(Node):
 
         # Stack the masks in bgr format.
         mask_stack = np.array(
-            np.stack((lane_mask, checkpoint_mask, np.zeros(checkpoint_mask.shape)), axis=-1),
+            np.stack((lane_mask_original, checkpoint_mask, np.zeros(checkpoint_mask.shape)), axis=-1),
             dtype=np.uint8,
         )
         cv2.imshow("combined_mask", (mask_stack*2)%255)
