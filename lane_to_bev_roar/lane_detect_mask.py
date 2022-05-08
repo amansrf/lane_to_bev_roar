@@ -37,10 +37,10 @@ class MaskPublisher(Node):
         # Use a horizontal kernel to accentuate horizontal waypoint lines
         self.horizontal_kernel = np.array(
             [
-                [0, 0, 0],
-                [1, 1, 1],
-                [1, 1, 1],
-                [0, 0, 0]
+                [0, 0, 0, 0],
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+                [0, 0, 0, 0]
             ],
             dtype = np.uint8
         )
@@ -50,6 +50,7 @@ class MaskPublisher(Node):
             [
                 [0, 1, 1, 0],
                 [0, 1, 1, 0],
+                [0, 1, 1, 0]
                 [0, 1, 1, 0]
             ],
             dtype = np.uint8
