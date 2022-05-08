@@ -9,15 +9,15 @@ from sensor_msgs.msg import Image
 import time
 
 color_mask_minima = {
-    "red_l": np.array([  0, 100,  200]),
-    "red_u": np.array([160, 100,  200]),
+    "red_l": np.array([0,50,50]),
+    "red_u": np.array([170,50,50]),
     "white": np.array([   0,  0, 210]),
     "blue" : np.array([100,150,0]),
     "yellow" : np.array([ 50, 50, 170])
 }
 color_mask_maxima = {
-    "red_l": np.array([ 10, 255, 255]),
-    "red_u": np.array([179, 255, 255]),
+    "red_l": np.array([10,255,255]),
+    "red_u": np.array([180,255,255]),
     "white": np.array([ 255, 25, 255]),
     "blue" : np.array([ 40,255,255]),
     "yellow" : np.array([ 255, 255, 190])
