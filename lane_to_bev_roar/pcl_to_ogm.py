@@ -38,7 +38,7 @@ class BEVPublisher(Node):
 
         self.bev_img_pub = self.create_publisher(Image, 'bev_image', 1)
         self.bridge = CvBridge()
-        self.bev_shape = (512,512,3)
+        self.bev_shape = (84,84,3)
         self.denoising_kernel = np.ones((25,25), dtype=np.uint8)
         self.bev_image = Image()
 
@@ -129,37 +129,10 @@ class BEVPublisher(Node):
         # self.get_logger().info(f"{( (self.bev_shape[0]-lane_coods_uv[:,1]-1)%255 , lane_coods_uv[:,0]%255 )}")
         bev_image[ (self.bev_shape[0]-lane_coods_uv[:,1]-1) , lane_coods_uv[:,0], 0] = 1
 
-        # Remove noisy detections from mask
-        
-        # vertical_kernel = np.array(
-        #     [
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #         [0, 0, 1, 1, 1, 0, 0],
-        #     ],
-        #     dtype = np.uint8
-        # )
-        vertical_kernel = np.array(
-            [
-                [0, 1, 0],
-                [0, 1, 0],
-                [0, 1, 0],
-            ],
-            dtype = np.uint8
-        )
-
-        # bev_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel)
-        bev_image = cv2.dilate(bev_image, vertical_kernel, iterations=8)
+        # Show bev
         cv2.imshow("bev", bev_image)
         cv2.waitKey(1)
 
-        # cv2.imshow("bev", bev_image)
-        # cv2.waitKey(1)
-
         # Remove noisy detections from mask
 
         # vertical_kernel = np.array(
@@ -182,21 +155,31 @@ class BEVPublisher(Node):
             ],
             dtype = np.uint8
         )
-
-        # denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel)
-        denoised_image = cv2.dilate(bev_image, vertical_kernel, iterations=8)
-
-        cv2.imshow("~/bev_noiseless.jpg", denoised_image)
-        cv2.waitKey(1)
-
-        denoised_image = np.array(
-            np.stack((denoised_image, denoised_image, denoised_image), axis=-1),
-            dtype=np.uint8,
+        horizontal_kernel = np.array(
+            [
+                [0, 0, 0],
+                [1, 1, 1],
+                [0, 0, 0],
+            ],
+            dtype = np.uint8
         )
 
+        denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel)
+        # denoised_image = cv2.dilate(bev_image, vertical_kernel, iterations=2)
+        # denoised_image = cv2.erode(denoised_image, horizontal_kernel, iterations=1)
+        denoised_image = cv2.morphologyEx(denoised_image, cv2.MORPH_CLOSE, horizontal_kernel)
+
+        # Show bev
+        cv2.imshow("bev_denoised", denoised_image)
+        cv2.waitKey(1)
+
+        assert denoised_image.shape == self.bev_shape, "Denoised Image not of correct shape"
+
+        denoised_image = np.array(denoised_image, dtype=np.uint8)
         self.bev_image = self.bridge.cv2_to_imgmsg(denoised_image, encoding='bgr8')
         self.bev_image.header.frame_id = 'base_link'
-        self.bev_image.header.stamp = self.get_clock().now().to_msg()
+        self.bev_image.header.stamp = msg.header.stamp
+        self.get_logger().info(f"Time gap:{self.bev_image.header.stamp.sec, self.bev_image.header.stamp.nanosec}")
         self.bev_img_pub.publish(self.bev_image)
 
 

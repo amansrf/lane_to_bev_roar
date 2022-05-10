@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy, QoSLivelinessPolicy
 
 import cv2
 from cv_bridge import CvBridge
@@ -9,15 +10,19 @@ from sensor_msgs.msg import Image
 import time
 
 color_mask_minima = {
-    "red_l": np.array([0,50,50]),
-    "red_u": np.array([170,50,50]),
+    # "red_l": np.array([0,50,50]),
+    # "red_u": np.array([170,50,50]),
+    "red_l": np.array([ 0, 100,  200]),
+    "red_u": np.array([160, 100,  200]),
     "white": np.array([   0,  0, 210]),
     "blue" : np.array([100,150,0]),
     "yellow" : np.array([ 50, 50, 170])
 }
 color_mask_maxima = {
-    "red_l": np.array([10,255,255]),
-    "red_u": np.array([180,255,255]),
+    # "red_l": np.array([10,255,255]),
+    # "red_u": np.array([180,255,255]),
+    "red_l": np.array([110, 255, 255]),
+    "red_u": np.array([179, 255, 255]),
     "white": np.array([ 255, 25, 255]),
     "blue" : np.array([ 40,255,255]),
     "yellow" : np.array([ 255, 255, 190])
@@ -25,13 +30,19 @@ color_mask_maxima = {
 
 LANE_COLOR = "red"
 CHKPT_COLOR = "yellow"
+QOS_PROFILE = QoSProfile(
+    reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_RELIABLE,
+    durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_VOLATILE,
+    liveliness=QoSLivelinessPolicy.RMW_QOS_POLICY_LIVELINESS_AUTOMATIC,
+    depth=1,
+)
 
 class MaskPublisher(Node):
 
     def __init__(self):
         super().__init__('lane_mask_publisher')
-        self.image_sub = self.create_subscription(Image, '/rgb_streamer/rgb_image', self.image_callback, 1)
-        self.masked_img_pub = self.create_publisher(Image, 'masked_image', 1)
+        self.image_sub = self.create_subscription(Image, '/rgb_streamer/rgb_image', self.image_callback, qos_profile=QOS_PROFILE)
+        self.masked_img_pub = self.create_publisher(Image, 'masked_image', qos_profile=QOS_PROFILE)
         self.bridge = CvBridge()
         self.denoising_kernel = np.ones((3,3), dtype=np.uint8)
         # Use a horizontal kernel to accentuate horizontal waypoint lines
@@ -106,7 +117,7 @@ class MaskPublisher(Node):
         converted_image[:converted_image.shape[0]//3,:] = 0
         lane_mask_original = self.color_mask(img = converted_image, color = LANE_COLOR)
         cv2.imshow("Lane Mask_unfiltered", lane_mask_original)
-        lane_mask = cv2.medianBlur(lane_mask_original, 3)
+        lane_mask = cv2.medianBlur(lane_mask_original, 1)
         
         cv2.imshow("Lane Mask_filtered", lane_mask)
         # cv2.waitKey(1)
@@ -138,6 +149,7 @@ class MaskPublisher(Node):
         masked_image.header = msg.header
 
         # Publish Masked Image
+        self.get_logger().info(f"Mask stamp is: {masked_image.header.stamp.sec, masked_image.header.stamp.nanosec}")
         self.masked_img_pub.publish(masked_image)
 
     
