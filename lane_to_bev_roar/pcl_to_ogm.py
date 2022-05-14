@@ -17,10 +17,26 @@ from .point_cloud2 import pointcloud2_to_array, split_rgb_field
 import ctypes
 import struct
 
-MAX_Z = 3.65 #metres
-MIN_Z = 0.2 #metres
-MAX_X = (MAX_Z - MIN_Z)/2 #metres
-MIN_X = -MAX_X #metres
+# MAX_Z = 3.65 #metres
+# MIN_Z = 0.2 #metres
+# MAX_X = (MAX_Z - MIN_Z)/2 #metres
+# MIN_X = -MAX_X #metres
+
+
+# Everything in metres, cause imperial sucks
+# Old
+# MAX_Z = 3.102
+# MIN_Z = -0.846
+# Z_THRESH = 0.188
+# MIN_X = -1.974
+# MAX_X = 1.974
+
+# New
+MAX_Z = 3.807
+MIN_Z = -0.141
+Z_THRESH = 0.2
+MIN_X = -1.974
+MAX_X = 1.974
 
 
 
@@ -32,17 +48,17 @@ class BEVPublisher(Node):
             reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
             durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_VOLATILE,
             liveliness=QoSLivelinessPolicy.RMW_QOS_POLICY_LIVELINESS_AUTOMATIC,
-            depth=1,
+            depth=0,
         )
         self.pointcloud_sub = self.create_subscription(PointCloud2, '/pointcloud', self.pcl_callback, qos_profile)
 
-        self.bev_img_pub = self.create_publisher(Image, 'bev_image', 1)
+        self.bev_img_pub = self.create_publisher(Image, 'bev_image', qos_profile=qos_profile)
         self.bridge = CvBridge()
         self.bev_shape = (84,84,3)
-        self.denoising_kernel = np.ones((25,25), dtype=np.uint8)
         self.bev_image = Image()
 
     def pcl_callback(self, msg):
+        tic =time.time()
 
         # Initialize empty bev_image
         bev_image = np.zeros(self.bev_shape)
@@ -61,8 +77,7 @@ class BEVPublisher(Node):
         # self.get_logger().info(f"after get_xyzrgb_points:{pcl_arr.shape}")
 
         # Filter locations of masked points only
-        # lane_coods = pcl_arr[np.argwhere(pcl_arr[:,3]>100)[:,0]]
-        lane_coods = pcl_arr[np.where( (pcl_arr[:,3]>100) | (pcl_arr[:,5]>100))[0]]
+        lane_coods = pcl_arr[np.where( (pcl_arr[:,4]>100) | (pcl_arr[:,5]>100))[0]]
         # self.get_logger().info(f"Lane_Coods after mask filter:{lane_coods.shape}")
 
         # self.get_logger().info(f"Lane_Coods after x filter:{np.where( (lane_coods[:,0] > MIN_X) & (lane_coods[:,0] < MAX_X))[0].shape}")
@@ -78,44 +93,46 @@ class BEVPublisher(Node):
         # Filter points by z range
         lane_coods = lane_coods[
             np.where(
-                (lane_coods[:,2] > MIN_Z) & (lane_coods[:,2] < MAX_Z)
+                (lane_coods[:,2] > Z_THRESH) & (lane_coods[:,2] < MAX_Z)
             )[0],
             :
         ]
         # self.get_logger().info(f"Lane_Coods after z filter:{lane_coods.shape}")
 
+        # ----------------------------- Process Waylines ----------------------------- #
 
-        # Extract x and z coods of filtered points
-        # lane_coods_x = lane_coods[:,0]
-        lane_coods_x = lane_coods[np.where(lane_coods[:,3]>100)[0], 0]
-        # self.get_logger().info(f"Max x:{np.max(lane_coods_x)}, Min x:{np.min(lane_coods_x)}")
+        # # Extract x and z coods of filtered points
+        # lane_coods_x = lane_coods[np.where(lane_coods[:,4]>100)[0], 0]
+        # # self.get_logger().info(f"Max x:{np.max(lane_coods_x)}, Min x:{np.min(lane_coods_x)}")
 
-        # lane_coods_z = lane_coods[:,2]
-        lane_coods_z = lane_coods[np.where(lane_coods[:,3]>100)[0], 2]
-        # self.get_logger().info(f"Max z:{np.max(lane_coods_z)}, Min z:{np.min(lane_coods_z)}")
+        # # lane_coods_z = lane_coods[:,2]
+        # lane_coods_z = lane_coods[np.where(lane_coods[:,4]>100)[0], 2]
+        # # self.get_logger().info(f"Max z:{np.max(lane_coods_z)}, Min z:{np.min(lane_coods_z)}")
 
-        lane_coods_uv = np.zeros( (lane_coods_x.shape[0], 2) )
+        # lane_coods_uv = np.zeros( (lane_coods_x.shape[0], 2) )
 
-        lane_coods_uv[:,0] = np.floor( self.bev_shape[1] * (lane_coods_x[:] - MIN_X)/(MAX_X-MIN_X + 1e-10))
-        # self.get_logger().info(f"Max u:{np.max(lane_coods_uv[:,0])}, Min u:{np.min(lane_coods_uv[:,0])}")
+        # lane_coods_uv[:,0] = np.floor( self.bev_shape[1] * (lane_coods_x[:] - MIN_X)/(MAX_X-MIN_X + 1e-10))
+        # # self.get_logger().info(f"Max u:{np.max(lane_coods_uv[:,0])}, Min u:{np.min(lane_coods_uv[:,0])}")
 
-        lane_coods_uv[:,1] = np.floor( self.bev_shape[0] * (lane_coods_z[:] - MIN_Z)/(MAX_Z-MIN_Z + 1e-10))
-        # self.get_logger().info(f"Max v:{np.max(lane_coods_uv[:,1])}, Min v:{np.min(lane_coods_uv[:,1])}")
+        # lane_coods_uv[:,1] = np.floor( self.bev_shape[0] * (lane_coods_z[:] - MIN_Z)/(MAX_Z-MIN_Z + 1e-10))
+        # # self.get_logger().info(f"Max v:{np.max(lane_coods_uv[:,1])}, Min v:{np.min(lane_coods_uv[:,1])}")
 
-
-        lane_coods_uv = np.array(lane_coods_uv, dtype=np.uint)
+        # lane_coods_uv = np.array(lane_coods_uv, dtype=np.uint)
         # self.get_logger().info(f"{( (self.bev_shape[0]-lane_coods_uv[:,1]-1)%255 , lane_coods_uv[:,0]%255 )}")
-        bev_image[ (self.bev_shape[0]-lane_coods_uv[:,1]-1) , lane_coods_uv[:,0], 2] = 1
+        # bev_image[ (self.bev_shape[0]-lane_coods_uv[:,1]-1) , lane_coods_uv[:,0], 1] = 1
+
+
+
+        # ---------------------------- Process Lane Lines ---------------------------- #
 
         # Extract x and z coods of filtered points
-        # lane_coods_x = lane_coods[:,0]
         lane_coods_x = lane_coods[np.where(lane_coods[:,5]>100)[0], 0]
         # self.get_logger().info(f"Max x:{np.max(lane_coods_x)}, Min x:{np.min(lane_coods_x)}")
 
-        # lane_coods_z = lane_coods[:,2]
         lane_coods_z = lane_coods[np.where(lane_coods[:,5]>100)[0], 2]
         # self.get_logger().info(f"Max z:{np.max(lane_coods_z)}, Min z:{np.min(lane_coods_z)}")
 
+        # Create Empty Image Frame
         lane_coods_uv = np.zeros( (lane_coods_x.shape[0], 2) )
 
         lane_coods_uv[:,0] = np.floor( self.bev_shape[1] * (lane_coods_x[:] - MIN_X)/(MAX_X-MIN_X + 1e-10))
@@ -130,10 +147,9 @@ class BEVPublisher(Node):
         bev_image[ (self.bev_shape[0]-lane_coods_uv[:,1]-1) , lane_coods_uv[:,0], 0] = 1
 
         # Show bev
-        cv2.imshow("bev", bev_image)
-        cv2.waitKey(1)
+        # cv2.imshow("bev", bev_image)
 
-        # Remove noisy detections from mask
+        # ------------------------------ Now denoise BEV ----------------------------- #
 
         # vertical_kernel = np.array(
         #     [
@@ -147,28 +163,40 @@ class BEVPublisher(Node):
         #     ],
         #     dtype = np.uint8
         # )
-        vertical_kernel = np.array(
-            [
-                [0, 1, 0],
-                [0, 1, 0],
-                [0, 1, 0],
-            ],
-            dtype = np.uint8
-        )
-        horizontal_kernel = np.array(
-            [
-                [0, 0, 0],
-                [1, 1, 1],
-                [0, 0, 0],
-            ],
-            dtype = np.uint8
-        )
+#         vertical_kernel = np.array(
+#             [
+#                 [0, 1, 1, 0],
+#                 [0, 1, 1, 0],
+#                 [0, 1, 1, 0],
+#                 [0, 1, 1, 0]
+#             ],
+#             dtype = np.uint8
+#         )
+#         horizontal_kernel = np.array(
+# [
+#                 [0, 0, 0, 0],
+#                 [1, 1, 1, 1],
+#                 [1, 1, 1, 1],
+#                 [0, 0, 0, 0]
+#             ],
+#             dtype = np.uint8
+#         )
 
-        denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel)
-        # denoised_image = cv2.dilate(bev_image, vertical_kernel, iterations=2)
-        # denoised_image = cv2.erode(denoised_image, horizontal_kernel, iterations=1)
-        denoised_image = cv2.morphologyEx(denoised_image, cv2.MORPH_CLOSE, horizontal_kernel)
 
+        # denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel, iterations=3)
+        kernel_ellipse = cv2.getStructuringElement(shape = cv2.MORPH_ELLIPSE , ksize = (5,5))
+        denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, kernel_ellipse, iterations=1)
+
+        
+
+        # cv2.imshow("vertical", denoised_image)
+        # denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, horizontal_kernel, iterations=1)
+        
+        # cv2.imshow("horizontal", denoised_image)
+        # denoised_image = cv2.morphologyEx(bev_image, cv2.MORPH_CLOSE, vertical_kernel, iterations=1)
+        # cv2.imshow("vertical", denoised_image)
+ 
+        
         # Show bev
         cv2.imshow("bev_denoised", denoised_image)
         cv2.waitKey(1)
@@ -179,7 +207,8 @@ class BEVPublisher(Node):
         self.bev_image = self.bridge.cv2_to_imgmsg(denoised_image, encoding='bgr8')
         self.bev_image.header.frame_id = 'base_link'
         self.bev_image.header.stamp = msg.header.stamp
-        self.get_logger().info(f"Time gap:{self.bev_image.header.stamp.sec, self.bev_image.header.stamp.nanosec}")
+        # self.get_logger().info(f"PCL stamp:{self.bev_image.header.stamp.sec, self.bev_image.header.stamp.nanosec}")
+        # self.get_logger().info(f"Latency:{time.time()-tic}")
         self.bev_img_pub.publish(self.bev_image)
 
 
